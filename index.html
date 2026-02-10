@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Búsqueda | Mobile Shield v29.0</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        :root {
+            --neon-blue: #00d4ff; --neon-pink: #ff007f; --neon-green: #39ff14; --neon-gold: #ffcc00;
+            --bg-body: #020205; --panel-bg: rgba(5, 5, 15, 0.98);
+            --transition: all 0.2s cubic-bezier(0.23, 1, 0.32, 1);
+            --font-display: 'Impact', 'Arial Black', sans-serif;
+            --font-tactical: 'Arial Narrow', 'Roboto Condensed', sans-serif;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; touch-action: manipulation; }
+        body { background-color: var(--bg-body); color: #fff; font-family: var(--font-tactical); height: 100vh; width: 100vw; overflow: hidden; display: flex; }
+        #app-shell { width: 100%; height: 100%; position: relative; display: flex; transition: filter 0.1s; }
+
+        .view { display: none; width: 100%; height: 100%; position: absolute; justify-content: center; align-items: center; animation: viewFadeIn 0.4s forwards; background: var(--bg-body); }
+        .view.active { display: flex; }
+        @keyframes viewFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* HUD IZQUIERDO (ADAPTABLE) */
+        .hud-sidebar { width: 22vw; max-width: 250px; height: 100%; background: var(--panel-bg); border-right: 2px solid var(--neon-blue); display: flex; flex-direction: column; padding: 20px 10px; z-index: 100; position: relative; }
+        .hud-content-scroll { flex-grow: 1; overflow-y: auto; scrollbar-width: none; margin-bottom: 70px; }
+        .hud-group { margin-bottom: 20px; }
+        .hud-label { font-size: 0.6rem; color: #555; display: block; margin-bottom: 4px; letter-spacing: 1px; font-weight: bold; }
+        .hud-val { font-size: 1.1rem; color: var(--neon-blue); text-shadow: 0 0 8px var(--neon-blue); font-family: var(--font-display); }
+        #target-telemetry { margin-top: 15px; padding-top: 10px; border-top: 1px solid #333; }
+        .target-status { display: flex; justify-content: space-between; margin-bottom: 12px; font-family: monospace; font-size: 0.8rem; }
+        .target-status.found { color: var(--neon-green); opacity: 0.5; }
+        .hud-footer { position: absolute; bottom: 20px; left: 10px; right: 10px; }
+
+        /* ÁREA DE JUEGO (MÓVIL FRIENDLY) */
+        .game-canvas { width: 78vw; height: 100%; display: flex; justify-content: center; align-items: center; position: relative; padding: 40px 20px; }
+        .board-wrapper { position: relative; padding: 35px; border: 3px solid rgba(0, 212, 255, 0.2); border-radius: 10px; background: rgba(0, 212, 255, 0.01); animation: radarPulse 2.5s infinite; overflow: hidden; }
+        @keyframes radarPulse { 0%, 100% { border-color: rgba(0, 212, 255, 0.2); } 50% { border-color: rgba(0, 212, 255, 0.5); } }
+
+        /* RADAR SCAN */
+        .board-wrapper::after { content: ''; position: absolute; top: -100%; left: 0; width: 100%; height: 20%; background: linear-gradient(to bottom, transparent, var(--neon-blue), transparent); opacity: 0.15; pointer-events: none; animation: radarScan 3s linear infinite; }
+        @keyframes radarScan { 0% { top: -20%; } 100% { top: 120%; } }
+
+        #grid { display: grid; gap: 4px; background: rgba(0, 212, 255, 0.03); padding: 8px; border: 1px solid var(--neon-blue); position: relative; z-index: 2; }
+        .cell { background: rgba(255, 255, 255, 0.02); border: 1px solid #1a1a1a; cursor: pointer; display: flex; justify-content: center; align-items: center; transition: var(--transition); opacity: 0; transform: scale(0.5); }
+        .cell.revealed { opacity: 1; transform: scale(1); }
+        .cell.miss { background: transparent !important; border: 1px solid rgba(0, 212, 255, 0.1); opacity: 0.3 !important; }
+        .cell.target { background: var(--neon-green) !important; color: #000; box-shadow: 0 0 20px var(--neon-green); opacity: 1 !important; }
+        .hint-arrow { color: var(--neon-pink); font-weight: 900; text-shadow: 0 0 10px var(--neon-pink); font-size: 1.5rem; }
+
+        /* CARDINALES REFORZADOS */
+        .cardinal { position: absolute; font-family: var(--font-display); font-weight: 900; color: rgba(255, 255, 255, 0.03); transition: 0.3s; font-size: 0.9rem; letter-spacing: 1px; }
+        .cardinal.active { color: var(--neon-pink); text-shadow: 0 0 10px var(--neon-pink); }
+        .n { top: -30px; left: 50%; transform: translateX(-50%); }
+        .s { bottom: -30px; left: 50%; transform: translateX(-50%); }
+        .e { right: -75px; top: 50%; transform: translateY(-50%) rotate(90deg); }
+        .o { left: -80px; top: 50%; transform: translateY(-50%) rotate(-90deg); }
+
+        /* BOTONES */
+        .btn { background: transparent; border: 1px solid var(--neon-blue); color: var(--neon-blue); padding: 12px; font-family: var(--font-display); cursor: pointer; text-transform: uppercase; width: 100%; letter-spacing: 1px; font-size: 0.8rem; }
+        .btn:hover { background: var(--neon-blue); color: #000; }
+        .btn.danger { border-color: var(--neon-pink); color: var(--neon-pink); }
+        .terminal-box { width: 90%; max-width: 500px; background: var(--panel-bg); padding: 2rem; border: 1px solid var(--neon-blue); }
+        
+        .agent-list { margin: 15px 0; max-height: 150px; overflow-y: auto; border: 1px solid #333; font-size: 0.9rem; }
+        .agent-item { padding: 10px; border-bottom: 1px solid #222; display: flex; justify-content: space-between; }
+        .agent-item.selected { border-left: 4px solid var(--neon-pink); background: rgba(255,0,127,0.1); }
+
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 2000; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 20px; }
+        .victory-title { font-family: var(--font-display); font-size: 3rem; color: var(--neon-green); text-shadow: 0 0 20px var(--neon-green); }
+    </style>
+</head>
+<body>
+    <div id="screen-flash" style="position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:3000; opacity:0; transition:0.15s;"></div>
+
+    <div id="modal-nextlevel" class="modal-overlay">
+        <h1 class="victory-title">MISIÓN CUMPLIDA</h1>
+        <div id="stats-summary" style="margin: 20px 0; color: var(--neon-blue); font-size: 1rem; font-family: monospace;"></div>
+        <button class="btn" style="border-color: var(--neon-green); color: var(--neon-green);" onclick="engine.ui.closeVictory()">SIGUIENTE RETO</button>
+    </div>
+
+    <div id="modal-levelup" class="modal-overlay">
+        <h1 style="font-family: var(--font-display); font-size: 2.5rem; color: var(--neon-gold); text-shadow: 0 0 20px var(--neon-gold);">ESCALADA TÁCTICA</h1>
+        <p id="levelup-desc" style="font-size: 1rem; margin-bottom: 1.5rem;">INCREMENTANDO OBJETIVOS</p>
+        <button class="btn" style="border-color: var(--neon-gold); color: var(--neon-gold);" onclick="engine.ui.closeLevelUp()">ENTENDIDO</button>
+    </div>
+
+    <div id="app-shell">
+        <section id="view-welcome" class="view active">
+            <div class="terminal-box" style="text-align:center;">
+                <h1 style="font-family: var(--font-display); font-size:3rem;">BÚSQUEDA</h1>
+                <p style="color:var(--neon-blue); margin-bottom:2rem;">MOBILE_V29_SHIELD</p>
+                <button class="btn" onclick="engine.navigation.enterSystem()">ACCEDER</button>
+            </div>
+        </section>
+
+        <section id="view-mgmt" class="view">
+            <div class="terminal-box">
+                <h2 style="font-family: var(--font-display); margin-bottom:1rem; text-align:center;">AGENTES</h2>
+                <div id="mgmt-main-controls">
+                    <div id="agent-list-ui" class="agent-list"></div>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+                        <button class="btn" onclick="engine.ui.toggleAddMode(true)">+ AGENTE</button>
+                        <button class="btn" id="btn-bind" onclick="engine.session.select()" disabled>VINCULAR</button>
+                        <button class="btn danger" id="btn-purge" onclick="engine.session.purge()" disabled style="grid-column: span 2;">BORRAR</button>
+                    </div>
+                </div>
+                <div id="add-agent-ui" style="display:none;">
+                    <div id="agent-input-display" style="color:var(--neon-green); text-align:center; font-size:2rem; font-family: var(--font-display); margin-bottom:10px;">_</div>
+                    <div id="virtual-keyboard" style="display:grid; grid-template-columns:repeat(10,1fr); gap:4px;"></div>
+                    <button class="btn" style="margin-top:15px;" onclick="engine.session.create()">VALIDAR</button>
+                </div>
+            </div>
+        </section>
+
+        <section id="view-game" class="view">
+            <aside class="hud-sidebar">
+                <div class="hud-content-scroll">
+                    <div class="hud-group"><span class="hud-label">AGENTE</span><span id="hud-user" class="hud-val">---</span></div>
+                    <div class="hud-group"><span class="hud-label">MISIÓN</span><span id="hud-lv" class="hud-val">01</span></div>
+                    <div class="hud-group"><span class="hud-label">PUNTAJE</span><span id="hud-score" class="hud-val">0000</span></div>
+                    <div id="target-telemetry"></div>
+                </div>
+                <div class="hud-footer"><button class="btn danger" onclick="engine.navigation.show('view-mgmt')">SALIR</button></div>
+            </aside>
+            <main class="game-canvas">
+                <div class="board-wrapper">
+                    <div id="c-n" class="cardinal n">NORTE</div><div id="c-s" class="cardinal s">SUR</div><div id="c-e" class="cardinal e">ESTE</div><div id="c-o" class="cardinal o">OESTE</div>
+                    <div id="grid"></div>
+                </div>
+            </main>
+        </section>
+    </div>
+
+    <script>
+        const SB_URL = 'https://iwuglirgkvnobhatgedq.supabase.co';
+        const SB_KEY = 'sb_publishable_sNgWni9L5DWroTgEPKhKQw_cST-OXxR';
+        const engine = {
+            state: { agents: JSON.parse(localStorage.getItem('AGENTS_DB_V29')) || [], selectedAgent: null, tempName: '', level: 1, score: 0, tries: 0, targets: [], foundCount: 0, isLive: false, lastR: -1, lastC: -1, audioCtx: null, timer: null },
+            cloud: {
+                client: null,
+                async init() { if(!this.client && typeof supabase !== 'undefined') { try { this.client = supabase.createClient(SB_URL, SB_KEY); } catch(e){} } },
+                async save(agent) { await this.init(); if(this.client) await this.client.from('hall_of_fame').upsert({ agent_name: agent.name, high_score: agent.highScore, max_level: agent.level }, { onConflict: 'agent_name' }); }
+            },
+            audio: { init() { if (!engine.state.audioCtx) engine.state.audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }, play(f, t, d) { this.init(); const o = engine.state.audioCtx.createOscillator(), g = engine.state.audioCtx.createGain(); o.type = t; o.frequency.setValueAtTime(f, engine.state.audioCtx.currentTime); g.gain.setValueAtTime(0.1, engine.state.audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.01, engine.state.audioCtx.currentTime + d); o.connect(g); g.connect(engine.state.audioCtx.destination); o.start(); o.stop(engine.state.audioCtx.currentTime + d); } },
+            navigation: { async enterSystem() { engine.audio.init(); setTimeout(() => { engine.ui.renderAgents(); engine.navigation.show('view-mgmt'); }, 300); }, show(viewId) { document.querySelectorAll('.view').forEach(v => v.classList.remove('active')); document.getElementById(viewId).classList.add('active'); if(viewId === 'view-mgmt') engine.state.isLive = false; } },
+            session: { create() { if(engine.state.tempName.length > 1) { engine.state.agents.push({ name: engine.state.tempName.toUpperCase(), level: 1, highScore: 0 }); this.sync(); engine.state.tempName = ''; engine.ui.toggleAddMode(false); engine.ui.renderAgents(); } }, select() { if(engine.state.selectedAgent !== null) { const a = engine.state.agents[engine.state.selectedAgent]; engine.state.user = a.name; engine.state.level = a.level; engine.logic.initLevel(); engine.navigation.show('view-game'); } }, purge() { if(engine.state.selectedAgent !== null) { engine.state.agents.splice(engine.state.selectedAgent, 1); this.sync(); engine.state.selectedAgent = null; engine.ui.renderAgents(); } }, sync() { localStorage.setItem('AGENTS_DB_V29', JSON.stringify(engine.state.agents)); } },
+            logic: {
+                initLevel() {
+                    const grid = document.getElementById('grid'); const size = 5 + Math.floor(engine.state.level / 4);
+                    const targetCount = Math.min(5, Math.ceil(engine.state.level / 4));
+                    engine.state.tries = 0; engine.state.score = 5000; engine.state.targets = []; engine.state.foundCount = 0; engine.state.isLive = true;
+                    while(engine.state.targets.length < targetCount) { const t = { id: `T-0${engine.state.targets.length+1}`, r: Math.floor(Math.random()*size), c: Math.floor(Math.random()*size), found: false }; if(!engine.state.targets.some(e => e.r === t.r && e.c === t.c)) engine.state.targets.push(t); }
+                    grid.innerHTML = ''; grid.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+                    const cellSize = Math.floor(Math.min(window.innerHeight * 0.5, window.innerWidth * 0.55) / size);
+                    for(let r=0; r<size; r++) { for(let c=0; c<size; c++) { const cell = document.createElement('div'); cell.className = 'cell'; cell.style.width = cell.style.height = `${cellSize}px`; cell.onclick = () => engine.logic.handleAction(r, c, cell, size); grid.appendChild(cell); setTimeout(() => cell.classList.add('revealed'), (r * size + c) * 10); } }
+                    engine.ui.updateHUD(); engine.ui.clearCardinals();
+                },
+                handleAction(r, c, cell, size) {
+                    if(!engine.state.isLive || cell.classList.contains('miss') || cell.classList.contains('target')) return;
+                    engine.state.tries++; const hit = engine.state.targets.find(t => t.r === r && t.c === c && !t.found);
+                    if(hit) {
+                        engine.audio.play(800, 'sine', 0.2); cell.classList.add('target'); cell.innerHTML = `<span style="font-size:0.7rem; font-weight:900;">🎯${hit.id}</span>`;
+                        hit.found = true; engine.state.foundCount++; engine.state.score += 500;
+                        if(engine.state.foundCount === engine.state.targets.length) { engine.state.isLive = false; engine.ui.showVictory(); }
+                    } else {
+                        engine.audio.play(100, 'sawtooth', 0.1); cell.classList.add('miss'); engine.state.score -= 50;
+                        const active = engine.state.targets.filter(t => !t.found);
+                        const near = active.reduce((p, curr) => (Math.abs(r-curr.r)+Math.abs(c-curr.c)) < (Math.abs(r-p.r)+Math.abs(c-p.c)) ? curr : p);
+                        cell.innerHTML = `<span class="hint-arrow">${this.getArrow(r,c,near)}</span>`; this.updateCardinals(r, c);
+                    }
+                    engine.ui.updateHUD();
+                },
+                getArrow(r, c, t) { if(t.r < r && t.c === c) return '↑'; if(t.r > r && t.c === c) return '↓'; if(t.r === r && t.c < c) return '←'; if(t.r === r && t.c > c) return '→'; if(t.r < r && t.c < c) return '↖'; if(t.r < r && t.c > c) return '↗'; if(t.r > r && t.c < c) return '↙'; return '↘'; },
+                updateCardinals(r, c) { engine.ui.clearCardinals(); engine.state.targets.filter(t => !t.found).forEach(t => { if (t.r < r) document.getElementById('c-n').classList.add('active'); if (t.r > r) document.getElementById('c-s').classList.add('active'); if (t.c > c) document.getElementById('c-e').classList.add('active'); if (t.c < c) document.getElementById('c-o').classList.add('active'); }); }
+            },
+            ui: {
+                showVictory() { document.getElementById('stats-summary').innerHTML = `PUNTOS: ${engine.state.score} | CLICKS: ${engine.state.tries}`; document.getElementById('modal-nextlevel').style.display = 'flex'; },
+                async closeVictory() {
+                    document.getElementById('modal-nextlevel').style.display = 'none';
+                    const prevCount = Math.min(5, Math.ceil(engine.state.level / 4)); engine.state.level++;
+                    const newCount = Math.min(5, Math.ceil(engine.state.level / 4));
+                    const agent = engine.state.agents[engine.state.selectedAgent]; agent.level = engine.state.level;
+                    if(engine.state.score > agent.highScore) agent.highScore = engine.state.score; engine.session.sync();
+                    await engine.cloud.save(agent);
+                    if(newCount > prevCount) { this.showLevelUp(newCount); } else { engine.logic.initLevel(); }
+                },
+                showLevelUp(count) { document.getElementById('modal-levelup').style.display = 'flex'; },
+                closeLevelUp() { document.getElementById('modal-levelup').style.display = 'none'; engine.logic.initLevel(); },
+                renderAgents() { document.getElementById('agent-list-ui').innerHTML = engine.state.agents.map((a, i) => `<div class="agent-item ${engine.state.selectedAgent === i ? 'selected' : ''}" onclick="engine.state.selectedAgent=${i}; engine.ui.renderAgents(); document.getElementById('btn-bind').disabled=false; document.getElementById('btn-purge').disabled=false;"><span>${a.name}</span><span>LV ${a.level}</span></div>`).join(''); },
+                toggleAddMode(show) { document.getElementById('add-agent-ui').style.display = show ? 'block' : 'none'; document.getElementById('mgmt-main-controls').style.display = show ? 'none' : 'block'; if(show) { document.getElementById('virtual-keyboard').innerHTML = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".split("").map(k => `<div style="padding:8px; background:#111; border:1px solid #333; font-size:0.7rem; text-align:center;" onclick="engine.state.tempName+='${k}'; engine.ui.updateKB();">${k}</div>`).join(''); } },
+                updateKB() { document.getElementById('agent-input-display').textContent = engine.state.tempName || '_'; },
+                updateHUD() {
+                    const pad = (v) => v.toString().padStart(2,'0'); document.getElementById('hud-user').textContent = engine.state.user || '---'; document.getElementById('hud-lv').textContent = pad(engine.state.level);
+                    document.getElementById('hud-score').textContent = engine.state.score.toString().padStart(4,'0');
+                    document.getElementById('target-telemetry').innerHTML = engine.state.targets.map(t => `<div class="target-status ${t.found?'found':''}"><span>${t.id}</span><span>${t.found?'CAPTURED':'---'}</span></div>`).join('');
+                },
+                clearCardinals() { document.querySelectorAll('.cardinal').forEach(el => el.classList.remove('active')); }
+            }
+        };
+    </script>
+</body>
+</html>
