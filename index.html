@@ -2,236 +2,259 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Búsqueda | Podio v47.0</title>
-    
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EduConnect - Control de Informática</title>
     <style>
         :root {
-            --neon-blue: #00d4ff; --neon-pink: #ff007f; --neon-green: #39ff14; --neon-gold: #ffcc00;
-            --bg-body: #020205; --panel-bg: rgba(5, 5, 15, 0.98);
-            --transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            --font-display: 'Impact', 'Arial Black', sans-serif;
-            --font-tactical: 'Arial Narrow', 'Roboto Condensed', sans-serif;
+            --bg: #0f172a; --panel: #1e293b; --accent: #22c55e;
+            --text: #f8fafc; --muted: #94a3b8; --border: #334155;
+            --info: #3b82f6; --danger: #ef4444;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; touch-action: manipulation; }
-        body { background-color: var(--bg-body); color: #fff; font-family: var(--font-tactical); height: 100vh; width: 100vw; overflow: hidden; display: flex; }
-        #app-shell { width: 100%; height: 100%; position: relative; display: flex; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body { background-color: var(--bg); color: var(--text); height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 
-        .view { display: none; width: 100%; height: 100%; position: absolute; justify-content: center; align-items: center; background: var(--bg-body); }
-        .view.active { display: flex; animation: holographicIn 0.5s forwards; }
-        @keyframes holographicIn { 0% { opacity: 0; transform: scale(1.02); } 100% { opacity: 1; filter: brightness(1); } }
+        #app-container {
+            width: 98vw; height: 96vh; background: var(--panel); border-radius: 1.5rem;
+            display: grid; grid-template-columns: 380px 1fr; gap: 1.5rem; padding: 1.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+        }
 
-        /* BLOQUEO PANTALLA */
-        #fullscreen-warning { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); backdrop-filter: blur(25px); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
-
-        /* HUD */
-        .hud-sidebar { width: 20vw; max-width: 260px; height: 100%; background: var(--panel-bg); border-right: 2px solid var(--neon-blue); display: flex; flex-direction: column; padding: 20px 15px; z-index: 100; position: relative; }
-        .hud-content-scroll { flex-grow: 1; overflow-y: auto; scrollbar-width: none; }
-        .hud-group { margin-bottom: 18px; border-left: 2px solid var(--neon-blue); padding-left: 10px; }
-        .hud-label { font-size: 0.65rem; color: #777; display: block; letter-spacing: 2px; font-weight: bold; }
-        .hud-val { font-size: 1.4rem; color: var(--neon-blue); text-shadow: 0 0 10px var(--neon-blue); font-family: var(--font-display); }
-        #target-telemetry { margin-top: 15px; padding-top: 15px; border-top: 1px solid #333; }
-
-        /* JUEGO - MAXIMIZACIÓN 85% */
-        .game-canvas { width: 80vw; height: 100%; display: flex; justify-content: center; align-items: center; position: relative; padding: 10px; }
-        .board-wrapper { position: relative; padding: 35px; border: 3px solid rgba(0, 212, 255, 0.4); border-radius: 12px; background: rgba(0, 212, 255, 0.02); animation: radarPulse 3s infinite; }
-        @keyframes radarPulse { 0%, 100% { border-color: rgba(0, 212, 255, 0.3); } 50% { border-color: rgba(0, 212, 255, 0.8); } }
-
-        #grid { display: grid; gap: 5px; background: rgba(0, 212, 255, 0.05); padding: 10px; border: 1px solid var(--neon-blue); transform: scale(0); opacity: 0; transition: 0.7s cubic-bezier(0.165, 0.84, 0.44, 1); }
-        #grid.active-level { transform: scale(1); opacity: 1; }
-
-        .cell { background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(0, 212, 255, 0.2); cursor: pointer; opacity: 0; display: flex; justify-content: center; align-items: center; line-height: 0; }
-        .cell.revealed { opacity: 1; }
-        .cell.target { background: var(--neon-green) !important; color: #000; box-shadow: 0 0 30px var(--neon-green); font-weight: bold; }
-        .hint-arrow { color: #fff; font-weight: 900; text-shadow: 0 0 15px var(--neon-pink); font-size: 2.2rem; -webkit-text-stroke: 1px var(--neon-pink); pointer-events: none; }
-
-        /* CARDINALES */
-        .cardinal { position: absolute; font-family: var(--font-display); font-weight: 900; color: rgba(255, 255, 255, 0.1); font-size: 1.1rem; }
-        .cardinal.active { color: var(--neon-pink); text-shadow: 0 0 20px var(--neon-pink); }
-        .n { top: -30px; left: 50%; transform: translateX(-50%); }
-        .s { bottom: -30px; left: 50%; transform: translateX(-50%); }
-        .e { right: -75px; top: 50%; transform: translateY(-50%) rotate(90deg); }
-        .o { left: -85px; top: 50%; transform: translateY(-50%) rotate(-90deg); }
-
-        /* HALL OF FAME PODIO */
-        .hof-scroll { flex-grow: 1; overflow-y: auto; background: rgba(0,0,0,0.7); border: 1px solid var(--neon-pink); margin: 15px 0; }
-        .hof-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; border-bottom: 1px dashed #333; font-family: var(--font-display); font-size: 1.3rem; }
-        .medal { font-size: 1.6rem; margin-right: 10px; filter: drop-shadow(0 0 5px currentColor); }
-        .rank-gold { color: var(--neon-gold); border-left: 4px solid var(--neon-gold); }
-        .rank-silver { color: #c0c0c0; border-left: 4px solid #c0c0c0; }
-        .rank-bronze { color: #cd7f32; border-left: 4px solid #cd7f32; }
-
-        /* BOTONES */
-        .btn { background: transparent; border: 1px solid var(--neon-blue); color: var(--neon-blue); padding: 14px; font-family: var(--font-display); cursor: pointer; text-transform: uppercase; letter-spacing: 1px; transition: 0.2s; }
-        .btn:hover:not(:disabled) { background: var(--neon-blue); color: #000; box-shadow: 0 0 20px var(--neon-blue); }
-        .btn.danger { border-color: var(--neon-pink); color: var(--neon-pink); }
-        .terminal-box { width: 90%; max-width: 600px; background: var(--panel-bg); padding: 2.5rem; border: 1px solid var(--neon-blue); }
+        /* BARRA LATERAL */
+        .sidebar { display: flex; flex-direction: column; gap: 1rem; border-right: 1px solid var(--border); padding-right: 1.5rem; overflow-y: auto; }
+        .header { border-bottom: 2px solid var(--border); padding-bottom: 1rem; }
+        .header h1 { font-size: 1.4rem; color: var(--accent); display: flex; align-items: center; gap: 0.5rem; }
         
-        .map-container { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; width: 95%; max-width: 800px; }
-        .level-card { background: rgba(0,212,255,0.05); border: 1px solid #333; padding: 20px; cursor: pointer; }
-        .level-card.active-rank { border-color: var(--neon-green); box-shadow: 0 0 10px rgba(57,255,20,0.2); }
-        .dot { width: 10px; height: 10px; border: 1px solid #444; border-radius: 50%; }
-        .dot.filled { background: var(--neon-green); box-shadow: 0 0 5px var(--neon-green); }
+        .form-group { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 1rem; }
+        label { font-size: 0.75rem; color: var(--muted); font-weight: bold; text-transform: uppercase; }
+        input { background: #0f172a; border: 1px solid var(--border); border-radius: 0.5rem; color: white; padding: 0.7rem; font-size: 0.95rem; outline: none; }
+        input:focus { border-color: var(--accent); }
+
+        .motive-list { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1rem; }
+        .motive-card { background: #0f172a; border: 1px solid var(--border); padding: 0.8rem; border-radius: 0.6rem; cursor: pointer; font-size: 0.85rem; transition: 0.2s; display: flex; align-items: center; gap: 0.8rem; }
+        .motive-card.active { border-color: var(--accent); background: rgba(34, 197, 94, 0.1); }
+        .dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--border); flex-shrink: 0; }
+        .active .dot { background: var(--accent); border-color: var(--accent); }
+
+        /* CONTENIDO PRINCIPAL */
+        .main { display: grid; grid-template-rows: auto 1fr; gap: 1.5rem; overflow: hidden; }
+        
+        .preview-box { background: #0f172a; border: 1px solid var(--border); border-radius: 1rem; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+        textarea { background: transparent; border: none; color: white; font-size: 1.1rem; resize: none; outline: none; line-height: 1.6; flex-grow: 1; min-height: 120px; }
+
+        .btn-send { 
+            background: var(--accent); color: white; border: none; padding: 1.2rem; border-radius: 0.8rem;
+            font-size: 1.2rem; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 0.8rem;
+        }
+        .btn-send:hover:not(:disabled) { background: #16a34a; transform: translateY(-2px); }
+        .btn-send:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .warning-box { font-size: 0.8rem; color: var(--info); padding: 1rem; border: 1px dashed var(--info); border-radius: 0.8rem; background: rgba(59, 130, 246, 0.05); line-height: 1.4; }
+
+        /* HISTORIAL REGISTRO */
+        .history-container { background: #0f172a; border: 1px solid var(--border); border-radius: 1rem; overflow: hidden; display: flex; flex-direction: column; }
+        .history-header { padding: 0.8rem 1.2rem; background: rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+        .history-scroll { overflow-y: auto; flex-grow: 1; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        th { text-align: left; padding: 0.8rem; color: var(--muted); border-bottom: 1px solid var(--border); }
+        td { padding: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.05); }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
     </style>
 </head>
-<body onload="engine.preflight.init()">
-    <div id="screen-flash" style="position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:3000; opacity:0; transition:0.15s;"></div>
+<body>
 
-    <div id="fullscreen-warning">
-        <h1 style="font-family: var(--font-display); font-size: 3rem; color: #ff0000; text-shadow: 0 0 15px #ff0000;">SESIÓN PAUSADA</h1>
-        <p style="color: #fff; margin: 20px 0;">ACTIVA PANTALLA COMPLETA PARA CONTINUAR</p>
-        <button class="btn" onclick="engine.ui.restoreFullscreen()">VINCULAR VISOR</button>
-    </div>
-
-    <section id="view-welcome" class="view active">
-        <div class="terminal-box" style="text-align:center;">
-            <h1 style="font-family: var(--font-display); font-size:5rem; margin-bottom:1rem;">BÚSQUEDA</h1>
-            <p id="preflight-status" style="letter-spacing: 5px; color: var(--neon-gold); margin-bottom: 2rem;">ESTABLECIENDO ENLACE...</p>
-            <button id="btn-enter" class="btn" style="width:100%" onclick="engine.navigation.enterSystem()" disabled>CARGANDO...</button>
-            <button class="btn" style="width:100%; margin-top:15px; border-color: var(--neon-pink); color: var(--neon-pink);" onclick="engine.navigation.show('view-hof')">HALL OF FAME (TOP 20)</button>
-        </div>
-    </section>
-
-    <section id="view-hof" class="view">
-        <div style="width: 90%; max-width: 650px; height: 85vh; display: flex; flex-direction: column;">
-            <h1 style="font-family: var(--font-display); font-size:4rem; color: var(--neon-pink); text-align:center;">HALL OF FAME</h1>
-            <div id="hof-list-full" class="hof-scroll"></div>
-            <button class="btn" onclick="engine.navigation.show('view-welcome')">VOLVER</button>
-        </div>
-    </section>
-
-    <section id="view-mgmt" class="view">
-        <div class="terminal-box">
-            <h2 style="font-family: var(--font-display); margin-bottom:1.5rem; text-align:center;">AGENTES</h2>
-            <div id="agent-list-ui" style="margin: 15px 0; max-height: 200px; overflow-y: auto; border: 1px solid #333; background: rgba(0,0,0,0.3);"></div>
-            <div style="display:flex; gap:10px;">
-                <button class="btn" style="flex:1" onclick="engine.ui.toggleAddMode(true)">+ AGENTE</button>
-                <button class="btn" id="btn-bind" onclick="engine.navigation.show('view-map')" disabled>MAPA</button>
-                <button class="btn danger" style="flex:1" id="btn-purge" onclick="engine.session.purge()" disabled>BORRAR</button>
+    <div id="app-container">
+        <!-- BARRA LATERAL -->
+        <div class="sidebar">
+            <div class="header">
+                <h1>💻 Reporte Informática</h1>
             </div>
-            <div id="add-agent-ui" style="display:none; border-top:1px solid #333; padding-top:10px;">
-                <div id="agent-input-display" style="color:var(--neon-green); text-align:center; font-size:2.5rem; font-family: var(--font-display);">_</div>
-                <div id="virtual-keyboard" style="display:grid; grid-template-columns:repeat(10,1fr); gap:5px;"></div>
-                <button class="btn" style="margin-top:15px; width:100%" onclick="engine.session.create()">REGISTRAR</button>
+
+            <div class="form-group">
+                <label>Tu Nombre (Docente)</label>
+                <input type="text" id="prof-name" placeholder="Ej. Carlos Ortiz" autocomplete="off">
             </div>
-            <button class="btn" style="margin-top:15px; width:100%" onclick="engine.navigation.show('view-welcome')">SALIR</button>
+
+            <div class="form-group">
+                <label>Estudiante</label>
+                <input type="text" id="est-name" placeholder="Nombre alumno">
+            </div>
+
+            <div class="form-group">
+                <label>Tutor / Padre</label>
+                <input type="text" id="tut-name" placeholder="Nombre padre">
+            </div>
+
+            <div class="form-group">
+                <label>WhatsApp del Padre</label>
+                <input type="tel" id="tut-phone" placeholder="Ej. 70012345">
+            </div>
+
+            <div class="motive-list" id="motives-grid"></div>
         </div>
-    </section>
 
-    <section id="view-map" class="view">
-        <div style="text-align:center; width:100%;">
-            <h2 style="font-family:var(--font-display); font-size:3rem; margin-bottom:30px;">MAPA DE OPERACIONES</h2>
-            <div id="map-ui" class="map-container" style="margin: 0 auto;"></div>
-            <button class="btn" style="margin-top:30px;" onclick="engine.navigation.show('view-mgmt')">TERMINAL</button>
+        <!-- AREA PRINCIPAL -->
+        <div class="main">
+            <div class="preview-box">
+                <label style="color: var(--accent); font-weight: bold;">VISTA PREVIA DEL MENSAJE SUTIL</label>
+                <textarea id="msg-preview" spellcheck="false"></textarea>
+                
+                <div class="warning-box">
+                    <b>MODO UNA SOLA PESTAÑA:</b> Al dar clic, esta página se convertirá en WhatsApp. Una vez enviado el mensaje, presiona el botón <b>ATRÁS (⬅️)</b> de tu navegador para volver aquí. Tus datos no se perderán.
+                </div>
+
+                <button id="send-btn" class="btn-send" disabled onclick="executeWorkflow()">
+                    🚀 ENVIAR Y ABRIR CHAT
+                </button>
+            </div>
+
+            <div class="history-container">
+                <div class="history-header">
+                    <span style="font-weight: bold;">📊 Alumnos Reportados Hoy</span>
+                    <button onclick="clearHistory()" style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 0.7rem;">Borrar Historial</button>
+                </div>
+                <div class="history-scroll">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Hora</th>
+                                <th>Alumno</th>
+                                <th>Motivo</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-body"></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
-    </section>
-
-    <section id="view-game" class="view">
-        <aside class="hud-sidebar">
-            <div class="hud-content-scroll">
-                <div class="hud-group"><span class="hud-label">OPERATIVO</span><span id="hud-user" class="hud-val">---</span></div>
-                <div class="hud-group"><span class="hud-label">MISIÓN</span><span id="hud-lv-name" class="hud-val">---</span></div>
-                <div class="hud-group"><span class="hud-label">DESPLIEGUE</span><span id="hud-attempt" class="hud-val">1 / 6</span></div>
-                <div class="hud-group"><span class="hud-label">PUNTAJE</span><span id="hud-score" class="hud-val">0000</span></div>
-                <div id="target-telemetry"></div>
-            </div>
-            <div class="hud-footer"><button class="btn danger" style="width:100%" onclick="engine.navigation.show('view-map')">ABORTAR</button></div>
-        </aside>
-        <main class="game-canvas">
-            <div class="board-wrapper">
-                <div id="c-n" class="cardinal n">NORTE</div><div id="c-s" class="cardinal s">SUR</div><div id="c-e" class="cardinal e">ESTE</div><div id="c-o" class="cardinal o">OESTE</div>
-                <div id="grid"></div>
-            </div>
-        </main>
-    </section>
-
-    <div id="modal-nextlevel" class="modal-overlay">
-        <h1 style="font-family:var(--font-display); font-size:4rem; color:var(--neon-green);">FASE COMPLETADA</h1>
-        <div id="stats-summary" style="margin:20px 0; color:var(--neon-blue); font-family:monospace; font-size:1.4rem;"></div>
-        <button class="btn" style="min-width:350px; border-color:var(--neon-green); color:var(--neon-green);" onclick="engine.ui.closeVictory()">SIGUIENTE</button>
     </div>
 
     <script>
-        const SB_URL = 'https://iwuglirgkvnobhatgedq.supabase.co';
-        const SB_KEY = 'sb_publishable_sNgWni9L5DWroTgEPKhKQw_cST-OXxR';
-        const engine = {
-            state: { 
-                agents: JSON.parse(localStorage.getItem('AGENTS_DB_V47')) || [], 
-                selectedAgent: null, tempName: '', 
-                currentLevel: 1, score: 0, tries: 0, targets: [], foundCount: 0, lastR: -1, lastC: -1,
-                levels: [
-                    { id: 1, name: "INICIACIÓN", targets: 1 }, { id: 2, name: "INTERCEPCIÓN", targets: 2 },
-                    { id: 3, name: "INFILTRACIÓN", targets: 3 }, { id: 4, name: "ELIMINACIÓN", targets: 4 },
-                    { id: 5, name: "DOMINACIÓN", targets: 5 }, { id: 6, name: "OPERACIÓN SPECTRE", targets: 6 }
-                ]
-            },
-            audio: { init() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); }, play(f, t, d, v=0.1) { this.init(); try { const o = this.ctx.createOscillator(), g = this.ctx.createGain(); o.type = t; o.frequency.setValueAtTime(f, this.ctx.currentTime); g.gain.setValueAtTime(v, this.ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + d); o.connect(g); g.connect(this.ctx.destination); o.start(); o.stop(this.ctx.currentTime + d); } catch(e){} } },
-            preflight: {
-                async init() {
-                    const status = document.getElementById('preflight-status'); const btn = document.getElementById('btn-enter');
-                    if(navigator.onLine) { status.textContent = "ENLACE NUBE OK"; await engine.cloud.init(); const cloudData = await engine.cloud.getTop(); if(cloudData) { cloudData.forEach(d => { if(!engine.state.agents.some(a => a.name === d.agent_name)) engine.state.agents.push({name: d.agent_name, level: d.max_level, attempts: [0,0,0,0,0,0], highScore: d.high_score}); }); } }
-                    else { status.textContent = "SISTEMA OFFLINE"; }
-                    setTimeout(() => { btn.disabled = false; btn.textContent = "ACCEDER"; status.style.color = "var(--neon-green)"; }, 600);
-                    document.addEventListener('fullscreenchange', () => { const warn = document.getElementById('fullscreen-warning'); if (!document.fullscreenElement && (document.getElementById('view-game').classList.contains('active') || document.getElementById('view-map').classList.contains('active'))) warn.style.display = 'flex'; else warn.style.display = 'none'; });
-                }
-            },
-            cloud: {
-                client: null,
-                async init() { if(!this.client && typeof supabase !== 'undefined') this.client = supabase.createClient(SB_URL, SB_KEY); },
-                async save(a) { await this.init(); if(this.client) try { await this.client.from('hall_of_fame').upsert({ agent_name: a.name, high_score: a.highScore, max_level: a.level }, { onConflict: 'agent_name' }); } catch(e){} },
-                async getTop() { await this.init(); if(this.client) { try { const {data} = await this.client.from('hall_of_fame').select('*').order('high_score', {ascending:false}).limit(20); return data; } catch(e){return null;} } return null; }
-            },
-            navigation: { show(viewId) { document.querySelectorAll('.view').forEach(v => v.classList.remove('active')); document.getElementById(viewId).classList.add('active'); if(viewId === 'view-mgmt') engine.ui.renderAgents(); if(viewId === 'view-map') engine.ui.renderMap(); if(viewId === 'view-hof') engine.ui.renderFullHOF(); }, enterSystem() { engine.audio.init(); engine.audio.play(880, 'sine', 0.2); this.show('view-mgmt'); } },
-            session: { create() { if(engine.state.tempName.length > 1) { engine.state.agents.push({ name: engine.state.tempName.toUpperCase(), level: 1, attempts: [0,0,0,0,0,0], highScore: 0 }); this.sync(); engine.state.tempName = ''; engine.ui.toggleAddMode(false); engine.ui.renderAgents(); } }, purge() { if(engine.state.selectedAgent !== null) { engine.state.agents.splice(engine.state.selectedAgent, 1); this.sync(); engine.state.selectedAgent = null; engine.ui.renderAgents(); engine.ui.toggleControls(false); } }, sync() { localStorage.setItem('AGENTS_DB_V47', JSON.stringify(engine.state.agents)); } },
-            logic: {
-                startMission(levelId) { engine.state.currentLevel = levelId; engine.ui.restoreFullscreen(); engine.navigation.show('view-game'); this.initLevel(); },
-                initLevel() {
-                    const grid = document.getElementById('grid'); grid.classList.remove('active-level'); grid.innerHTML = '';
-                    const size = 6 + engine.state.currentLevel; const targetCount = engine.state.levels[engine.state.currentLevel-1].targets;
-                    engine.state.tries = 0; engine.state.score = 5000; engine.state.targets = []; engine.state.foundCount = 0; engine.state.lastR = -1;
-                    while(engine.state.targets.length < targetCount) { const t = { id: `T-0${engine.state.targets.length+1}`, r: Math.floor(Math.random()*size), c: Math.floor(Math.random()*size), found: false }; if(!engine.state.targets.some(e => e.r === t.r && e.c === t.c)) engine.state.targets.push(t); }
-                    grid.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
-                    const cellSize = Math.floor(Math.min(window.innerHeight * 0.82, window.innerWidth * 0.72) / size);
-                    for(let r=0; r<size; r++) { for(let c=0; c<size; c++) { const cell = document.createElement('div'); cell.className = 'cell'; cell.style.width = cell.style.height = `${cellSize}px`; cell.onclick = () => engine.logic.press(r, c, cell, size); grid.appendChild(cell); setTimeout(() => cell.classList.add('revealed'), (r * size + c) * 6); } }
-                    setTimeout(() => grid.classList.add('active-level'), 100); engine.ui.updateHUD(); engine.ui.clearCardinals();
-                },
-                press(r, c, cell, size) {
-                    if(cell.classList.contains('miss') || cell.classList.contains('target')) return;
-                    engine.state.tries++; engine.state.lastR = r; engine.state.lastC = c;
-                    const hit = engine.state.targets.find(t => t.r === r && t.c === c);
-                    if(hit) { engine.audio.play(880, 'sine', 0.2); cell.classList.add('target'); cell.innerHTML = `<span style="font-size:0.75rem;font-weight:900;color:#000">🎯${hit.id}</span>`; hit.found = true; engine.state.foundCount++; engine.state.score += 500; if(engine.state.foundCount === engine.state.targets.length) { setTimeout(() => { document.getElementById('grid').classList.remove('active-level'); engine.ui.showVictory(); }, 300); } } 
-                    else { engine.audio.play(110, 'sawtooth', 0.1); cell.classList.add('miss'); engine.state.score -= 50; const near = engine.state.targets.filter(t => !t.found).reduce((p, curr) => (Math.abs(r-curr.r)+Math.abs(c-curr.c)) < (Math.abs(r-p.r)+Math.abs(c-p.c)) ? curr : p); cell.innerHTML = `<span class="hint-arrow">${this.getArrow(r,c,near)}</span>`; this.updateCardinals(r, c); }
-                    engine.ui.updateHUD();
-                },
-                getArrow(r, c, t) { if(t.r < r && t.c === c) return '↑'; if(t.r > r && t.c === c) return '↓'; if(t.r === r && t.c < c) return '←'; if(t.r === r && t.c > c) return '→'; if(t.r < r && t.c < c) return '↖'; if(t.r < r && t.c > c) return '↗'; if(t.r > r && t.c < c) return '↙'; return '↘'; },
-                updateCardinals(r, c) { engine.ui.clearCardinals(); engine.state.targets.filter(t => !t.found).forEach(t => { if (t.r < r) document.getElementById('c-n').classList.add('active'); if (t.r > r) document.getElementById('c-s').classList.add('active'); if (t.c > c) document.getElementById('c-e').classList.add('active'); if (t.c < c) document.getElementById('c-o').classList.add('active'); }); }
-            },
-            ui: {
-                restoreFullscreen() { if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{}); },
-                renderMap() { const ag = engine.state.agents[engine.state.selectedAgent]; document.getElementById('map-ui').innerHTML = engine.state.levels.map(l => { const isLocked = l.id > 1 && ag.attempts[l.id-2] < 6; const dots = Array(6).fill(0).map((_,i) => `<div class="dot ${i < ag.attempts[l.id-1] ? 'filled' : ''}"></div>`).join(''); return `<div class="level-card ${isLocked?'locked':''} ${ag.attempts[l.id-1] < 6 && !isLocked ? 'active-rank' : ''}" onclick="${!isLocked ? `engine.logic.startMission(${l.id})` : ''}"><h3>${l.name}</h3><p style="font-size:0.75rem; color:#888;">CAPTURAS: ${l.targets}</p><div class="progress-dots">${dots}</div></div>`; }).join(''); },
-                async renderFullHOF() { 
-                    const container = document.getElementById('hof-list-full'); let data = await engine.cloud.getTop(); if(!data) data = [...engine.state.agents].sort((a,b) => b.highScore - a.highScore).slice(0,10); 
-                    container.innerHTML = data.map((d,i) => {
-                        let rankClass = '', medal = '';
-                        if(i === 0) { rankClass = 'rank-gold'; medal = '🥇'; }
-                        else if(i <= 2) { rankClass = 'rank-silver'; medal = '🥈'; }
-                        else if(i <= 5) { rankClass = 'rank-bronze'; medal = '🥉'; }
-                        return `<div class="hof-row ${rankClass}"><span>${medal} #${i+1} ${d.agent_name || d.name}</span><span>${d.high_score || d.highScore} pts</span></div>`;
-                    }).join(''); 
-                },
-                showVictory() { const ag = engine.state.agents[engine.state.selectedAgent]; document.getElementById('stats-summary').innerHTML = `DESPLIEGUE: ${ag.attempts[engine.state.currentLevel-1] + 1} / 6 | SCORE: ${engine.state.score}`; document.getElementById('modal-nextlevel').style.display = 'flex'; },
-                async closeVictory() { document.getElementById('modal-nextlevel').style.display = 'none'; const ag = engine.state.agents[engine.state.selectedAgent]; ag.attempts[engine.state.currentLevel-1]++; if(engine.state.score > ag.highScore) ag.highScore = engine.state.score; engine.session.sync(); await engine.cloud.save(ag); if(ag.attempts[engine.state.currentLevel-1] < 6) { engine.logic.initLevel(); } else { engine.navigation.show('view-map'); } },
-                renderAgents() { document.getElementById('agent-list-ui').innerHTML = engine.state.agents.map((a, i) => `<div class="agent-item ${engine.state.selectedAgent === i ? 'selected' : ''}" onclick="engine.state.selectedAgent=${i}; engine.ui.renderAgents(); engine.ui.toggleControls(true);"><span>${a.name}</span><span>STATUS: READY</span></div>`).join(''); },
-                toggleControls(a) { document.getElementById('btn-bind').disabled = !a; document.getElementById('btn-purge').disabled = !a; },
-                toggleAddMode(s) { document.getElementById('add-agent-ui').style.display = s ? 'block' : 'none'; document.getElementById('mgmt-main-controls').style.display = s ? 'none' : 'block'; if(s) document.getElementById('virtual-keyboard').innerHTML = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".split("").map(k => `<div style="padding:12px; background:#111; border:1px solid #333; color:var(--neon-blue); cursor:pointer; text-align:center; font-size:1rem;" onclick="engine.state.tempName+='${k}'; engine.ui.updateKB();">${k}</div>`).join(''); },
-                updateKB() { document.getElementById('agent-input-display').textContent = engine.state.tempName || '_'; },
-                updateHUD() { const ag = engine.state.agents[engine.state.selectedAgent]; document.getElementById('hud-user').textContent = ag.name; document.getElementById('hud-lv-name').textContent = engine.state.levels[engine.state.currentLevel-1].name; document.getElementById('hud-attempt').textContent = `${ag.attempts[engine.state.currentLevel-1] + 1} / 6`; document.getElementById('hud-score').textContent = engine.state.score.toString().padStart(4,'0'); document.getElementById('target-telemetry').innerHTML = engine.state.targets.map(t => { const a = (engine.state.lastR !== -1 && !t.found) ? engine.logic.getArrow(engine.state.lastR, engine.state.lastC, t) : '---'; return `<div class="target-status ${t.found?'found':''}"><span>${t.id}</span><span>${t.found?'CAPTURED':a}</span></div>` }).join(''); },
-                clearCardinals() { document.querySelectorAll('.cardinal').forEach(el => el.classList.remove('active')); }
-            }
+        // CONFIGURACIÓN DE MOTIVOS (Sutiles, Identificando Informática y Classroom)
+        const MOTIVOS = [
+            { id: 1, title: "Classroom: Práctica incompleta", 
+              text: "Hola {tutor}, le saluda {docente}, docente de Informática. Quería comentarle que hoy {nombre} no llegó a subir su actividad a Classroom. Le agradecería mucho si pudieran platicar en casa para motivarle a aprovechar el tiempo en la computadora y terminar sus trabajos." },
+            { id: 2, title: "Concentración: Charlas en clase", 
+              text: "Buenos días {tutor}, le escribe {docente}, docente de Informática. He notado que hoy {nombre} se distrajo charlando con sus compañeros y eso le impidió avanzar con sus ejercicios prácticos. Sería excelente si pudieran platicar en familia sobre la importancia de concentrarse durante la clase." },
+            { id: 3, title: "Classroom: No trabaja por charlar", 
+              text: "Hola {tutor}, soy {docente}, de Informática. Quería pedirle su valiosa ayuda motivando a {nombre}, ya que hoy por estar charlando no terminó de enviar su tarea a Classroom. Un recordatorio en familia sobre priorizar el trabajo escolar le vendría muy bien para su avance." },
+            { id: 4, title: "Respeto a normas de Laboratorio", 
+              text: "Saludos {tutor}, le saluda {docente}, docente de Informática. Quería pedirle que conversen con {nombre} sobre el respeto a las normas de convivencia del laboratorio, para que pueda enfocarse mejor en sus aprendizajes tecnológicos junto a sus compañeros." }
+        ];
+
+        let state = {
+            prof: localStorage.getItem('edu_prof') || '',
+            est: localStorage.getItem('edu_est') || '',
+            tut: localStorage.getItem('edu_tut') || '',
+            phone: localStorage.getItem('edu_phone') || '',
+            motiveId: localStorage.getItem('edu_motive') ? parseInt(localStorage.getItem('edu_motive')) : null,
+            history: JSON.parse(localStorage.getItem('edu_history')) || []
         };
+
+        window.onload = () => {
+            initInputs();
+            renderMotives();
+            updatePreview();
+            renderHistory();
+        };
+
+        function initInputs() {
+            const map = { 'prof-name': 'prof', 'est-name': 'est', 'tut-name': 'tut', 'tut-phone': 'phone' };
+            for(let id in map) {
+                const el = document.getElementById(id);
+                el.value = state[map[id]];
+                el.addEventListener('input', (e) => {
+                    let val = e.target.value;
+                    if(id === 'tut-phone') val = val.replace(/\D/g, '');
+                    state[map[id]] = val;
+                    localStorage.setItem('edu_' + map[id], val);
+                    updatePreview();
+                });
+            }
+        }
+
+        function renderMotives() {
+            const grid = document.getElementById('motives-grid');
+            grid.innerHTML = '';
+            MOTIVOS.forEach(m => {
+                const div = document.createElement('div');
+                div.className = `motive-card ${state.motiveId === m.id ? 'active' : ''}`;
+                div.innerHTML = `<div class="dot"></div><span>${m.title}</span>`;
+                div.onclick = () => {
+                    state.motiveId = m.id;
+                    localStorage.setItem('edu_motive', m.id);
+                    renderMotives();
+                    updatePreview();
+                };
+                grid.appendChild(div);
+            });
+        }
+
+        function updatePreview() {
+            const teacher = state.prof || "[Tu Nombre]";
+            const student = state.est || "[Estudiante]";
+            const tutor = state.tut || "[Tutor]";
+            
+            if(!state.motiveId) {
+                document.getElementById('msg-preview').value = "Selecciona un motivo...";
+                document.getElementById('send-btn').disabled = true;
+                return;
+            }
+
+            const template = MOTIVOS.find(m => m.id === state.motiveId).text;
+            const msg = template
+                .replace(/{tutor}/g, tutor)
+                .replace(/{docente}/g, teacher)
+                .replace(/{nombre}/g, student);
+            
+            document.getElementById('msg-preview').value = msg;
+            document.getElementById('send-btn').disabled = !(state.prof && state.est && state.tut && state.phone);
+        }
+
+        function executeWorkflow() {
+            const msg = document.getElementById('msg-preview').value;
+            const phone = state.phone;
+            
+            // 1. Guardar en Historial antes de irse
+            const entry = {
+                time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                name: state.est,
+                motive: MOTIVOS.find(m => m.id === state.motiveId).title
+            };
+            state.history.push(entry);
+            localStorage.setItem('edu_history', JSON.stringify(state.history));
+
+            // 2. Limpiar solo los datos del alumno (preparar para el siguiente al volver)
+            localStorage.removeItem('edu_est');
+            localStorage.removeItem('edu_tut');
+            localStorage.removeItem('edu_phone');
+            localStorage.removeItem('edu_motive');
+
+            // 3. LA MAGIA: Navegar en la misma pestaña
+            const url = `https://web.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(msg)}`;
+            window.location.href = url;
+        }
+
+        function renderHistory() {
+            const body = document.getElementById('history-body');
+            body.innerHTML = '';
+            [...state.history].reverse().forEach(h => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${h.time}</td><td>${h.name}</td><td>${h.motive}</td><td style="color:var(--accent)">✓ Registrado</td>`;
+                body.appendChild(tr);
+            });
+        }
+
+        function clearHistory() {
+            if(confirm("¿Borrar historial de hoy?")) {
+                state.history = [];
+                localStorage.setItem('edu_history', JSON.stringify([]));
+                renderHistory();
+            }
+        }
     </script>
 </body>
 </html>
