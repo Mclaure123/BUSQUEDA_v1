@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Excel Memoria - V20 Mobile Ready</title>
+    <title>Excel Memoria - V21 Pantalla Completa</title>
     <style>
         /* =========================================
            ESTILOS (CSS) - EXCEL PURO + MOBILE
@@ -21,7 +21,6 @@
 
         * { box-sizing: border-box; user-select: none; margin: 0; padding: 0; }
 
-        /* Evitar zoom al tocar dos veces en móviles */
         body {
             background-color: var(--excel-gray-bg);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -55,7 +54,10 @@
 
         .title-bar { background-color: var(--excel-green); color: white; padding: 6px 15px; font-size: 12px; display: flex; justify-content: space-between; align-items: center; }
         .quick-access { display: flex; gap: 12px; font-size: 14px; }
-        .window-controls { cursor:pointer; letter-spacing: 5px; }
+        
+        .window-controls { cursor:pointer; font-weight: bold; display: flex; gap: 8px; }
+        .window-controls span { padding: 0 5px; transition: color 0.2s; }
+        .window-controls span:hover { color: #FFB900; } /* Hover amarillo jugoso */
 
         .ribbon-bar { display: flex; padding: 5px 15px 0 5px; background-color: var(--excel-green); font-size: 13px; color: white; border-bottom: 1px solid var(--excel-gray-border); overflow-x: auto; white-space: nowrap; }
         .ribbon-tab { padding: 8px 15px; cursor: default; }
@@ -132,18 +134,18 @@
         .sheet-tab.inactive { background: transparent; color: var(--excel-text-light); border-top: none; font-weight: normal; }
 
         /* =========================================
-           MEDIA QUERIES PARA CELULARES (MOBILE OPTIMIZATION)
+           MEDIA QUERIES PARA CELULARES
            ========================================= */
         @media (max-width: 600px) {
-            .title-bar, .bottom-status-bar { display: none; } /* Ocultar para ganar espacio */
+            /* En móvil la title bar sigue viva pero minimalista para permitir el botón fullscreen */
+            .quick-access, .bottom-status-bar { display: none; } 
+            .title-bar { padding: 4px 10px; }
             .ribbon-bar { padding-top: 2px; padding-bottom: 2px; }
             .ribbon-tab { padding: 4px 8px; font-size: 11px; }
             .stats-panel { padding: 4px 8px; font-size: 10px; }
             .inventory-panel { padding: 2px 8px; min-height: 28px; }
             .formula-bar { padding: 2px 8px; }
             #cellInput { font-size: 12px; padding: 2px 4px; }
-            
-            /* Ajustar cabeceras en móviles */
             .header-cell { font-size: 10px; }
         }
     </style>
@@ -152,15 +154,14 @@
 
     <div id="welcomeScreen">
         <div class="welcome-window">
-            <div class="welcome-header"><span>📱</span> Excel Mobile-Ready (V20)</div>
+            <div class="welcome-header"><span>📱</span> Excel Inmersivo (V21)</div>
             <div class="modal-body">
-                <p>Adaptado perfectamente a pantallas táctiles.</p><br>
+                <p>Modo de enfoque absoluto activado.</p><br>
                 <ul style="text-align: left; display: inline-block; padding-left: 20px; line-height: 1.6; font-size: 13px;">
-                    <li><b>Anti-Teclado Virtual:</b> Juega tocando sin que te salte el teclado del celular.</li>
-                    <li><b>Grid Responsiva:</b> Si tienes el celular en vertical, el Excel ajustará las filas para aprovechar el espacio.</li>
-                    <li><b>Interfaz Compacta:</b> Menús reducidos en pantallas pequeñas.</li>
+                    <li><b>Pantalla Completa:</b> Sumersión total, sin barras de navegador que molesten.</li>
+                    <li><b>Botón Activo:</b> Usa el botón <b>□</b> en la parte superior para entrar/salir de fullscreen.</li>
                 </ul><br><br>
-                <button class="btn-excel" onclick="initApp()">ABRIR EN EL MÓVIL</button>
+                <button class="btn-excel" onclick="initApp()">INICIAR PANTALLA COMPLETA</button>
             </div>
         </div>
     </div>
@@ -168,8 +169,12 @@
     <div id="appContainer">
         <div class="title-bar">
             <div class="quick-access">💾 ↩️ ↪️</div>
-            <div>Libro_Mobile.xlsx - Excel</div>
-            <div class="window-controls" onclick="closeApp()">_ □ ✕</div>
+            <div>Libro_Inmersivo.xlsx - Excel</div>
+            <div class="window-controls">
+                <span>_</span>
+                <span onclick="toggleFullScreen()" title="Pantalla Completa">□</span>
+                <span onclick="closeApp()" title="Cerrar">✕</span>
+            </div>
         </div>
 
         <div class="ribbon-bar">
@@ -226,6 +231,24 @@
 
     <script>
         /* =========================================
+           SISTEMA DE PANTALLA COMPLETA
+           ========================================= */
+        function toggleFullScreen() {
+            const docElm = document.documentElement;
+            if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.msFullscreenElement) {
+                // Entrar en Fullscreen
+                if (docElm.requestFullscreen) docElm.requestFullscreen().catch(()=>{});
+                else if (docElm.webkitRequestFullscreen) docElm.webkitRequestFullscreen(); // iOS/Safari
+                else if (docElm.msRequestFullscreen) docElm.msRequestFullscreen(); // IE11
+            } else {
+                // Salir de Fullscreen
+                if (document.exitFullscreen) document.exitFullscreen();
+                else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+                else if (document.msExitFullscreen) document.msExitFullscreen();
+            }
+        }
+
+        /* =========================================
            MOTOR Y AUDIO
            ========================================= */
         let audioCtx = null;
@@ -270,7 +293,6 @@
             }
         }
 
-        /* Efectos */
         function spawnFloatingText(el, text) {
             const rect = el.getBoundingClientRect();
             const floater = document.createElement('div');
@@ -325,13 +347,15 @@
             levelDisplay: document.getElementById('levelDisplay')
         };
 
-        // Si es móvil, evitamos que el teclado virtual salte configurando readonly
-        if (isMobile) {
-            uiElements.input.setAttribute('readonly', 'true');
-        }
+        if (isMobile) uiElements.input.setAttribute('readonly', 'true');
 
         function initApp() {
             initAudio(); 
+            // Forzar entrada a pantalla completa
+            const docElm = document.documentElement;
+            if (docElm.requestFullscreen) docElm.requestFullscreen().catch(()=>{});
+            else if (docElm.webkitRequestFullscreen) docElm.webkitRequestFullscreen();
+
             document.getElementById('welcomeScreen').style.display = 'none';
             document.getElementById('appContainer').style.display = 'flex';
             loadLevel();
@@ -359,9 +383,7 @@
                 baseRows = Math.ceil(totalCards / baseCols);
             }
 
-            // ROTACIÓN INTELIGENTE PARA CELULARES (Portrait vs Landscape)
             if (window.innerHeight > window.innerWidth) {
-                // Si la pantalla es más alta que ancha, forzamos que haya más filas que columnas
                 return { cols: Math.min(baseCols, baseRows), rows: Math.max(baseCols, baseRows) };
             }
             return { cols: baseCols, rows: baseRows };
@@ -388,15 +410,13 @@
             cursorCol = 0; cursorRow = 1;
             syncCursorToInput();
             
-            // Foco inicial (solo si es escritorio)
             if (!isMobile) uiElements.input.focus();
         }
 
         function buildExcelGrid(cols, rows, exactCardsCount) {
             uiElements.board.innerHTML = ''; 
             
-            // Ajuste dinámico de los tamaños de las celdas en base al número de columnas
-            let colWidth = isMobile ? `minmax(0, 1fr)` : `minmax(0, 1fr)`;
+            let colWidth = `minmax(0, 1fr)`;
             let rowHeaderWidth = isMobile ? '25px' : '40px';
             let colHeaderHeight = isMobile ? '20px' : '25px';
 
@@ -451,16 +471,10 @@
             }
         }
 
-        // --- MANEJO DE EVENTOS (Adaptado para Touch) ---
-        
-        // pointerdown sirve tanto para mouse como para touch en navegadores modernos
         uiElements.board.addEventListener('pointerdown', (e) => {
             if (isModalOpen) return;
             const cell = e.target.closest('.card, .empty-cell');
             if (!cell || !cell.dataset.coord) return;
-            
-            // Si no prevenimos default aquí, permitimos que el navegador decida,
-            // pero para evitar el teclado en móviles lo dejamos controlado.
             
             const coord = cell.dataset.coord;
             cursorCol = cell.dataset.col.charCodeAt(0) - 65; 
@@ -473,8 +487,6 @@
             }
 
             handleActionAttempt(coord);
-            
-            // Foco condicional
             if (!isMobile) uiElements.input.focus();
         });
 
@@ -513,7 +525,7 @@
         }
 
         uiElements.input.addEventListener('input', (e) => {
-            if (isMobile) return; // En móvil la barra es readonly
+            if (isMobile) return;
             const val = e.target.value.toUpperCase().replace(/\s/g, ''); 
             e.target.value = val; 
             const colMatch = val.match(/^[A-Z]+/); 
@@ -555,8 +567,6 @@
             }
         });
 
-        // --- LÓGICA DE JUEGO PRINCIPAL ---
-        
         function attemptAction(coord) {
             if (lockBoard) return false;
             const card = cellsMap[coord];
